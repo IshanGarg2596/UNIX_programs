@@ -1,14 +1,22 @@
-//link1:this file: https://mrlngeorge.wordpress.com/2015/07/10/c-implementation-of-linux-commands-ls-and-ps/
-//link2: https://github.com/deepakrenni/PS-/blob/master/ps%20Implementation%20using%20C
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <libgen.h>
 #include <pwd.h>
+#include <fcntl.h>
 #include <unistd.h>
- 
+#include <string.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#define FORMAT "%5s %s\t%8s %s\n"
+#define MAX_BUF 1024
+#define INT_SIZE_BUF 6
+#define PID_LIST_BLOCK 32
+#define UP_TIME_SIZE 10
+
 int check_if_number (char *str)
 {
   int i;
@@ -21,11 +29,7 @@ int check_if_number (char *str)
   }
   return 1;
 }
- 
-#define MAX_BUF 1024
-#define INT_SIZE_BUF 6
-#define PID_LIST_BLOCK 32
-#define UP_TIME_SIZE 10
+
 const char *getUserName(int uid)
 {
   struct passwd *pw = getpwuid(uid);
@@ -36,10 +40,59 @@ const char *getUserName(int uid)
 
   return "";
 }
+
+void ps(){
+	DIR *dir;
+	struct dirent *ent;
+	int i, fd_self, fd;
+	unsigned long time, stime;
+	char flag, *tty;
+	char cmd[256], tty_self[256], path[256], time_s[256];
+  	FILE* file;
+
+  	dir = opendir("/proc");
+  	fd_self = open("/proc/self/fd/0", O_RDONLY);
+  	sprintf(tty_self, "%s", ttyname(fd_self));
+  	printf(FORMAT, "PID", "TTY", "TIME", "CMD");
+
+  	while ((ent = readdir(dir)) != NULL){
+  		flag = 1;
+  		for (i = 0; ent->d_name[i]; i++)
+  		if (!isdigit(ent->d_name[i]))
+  		{ 
+   		flag = 0;
+   		break;
+  		}
+
+  		if (flag){
+  			sprintf(path, "/proc/%s/fd/0", ent->d_name);
+  			fd = open(path, O_RDONLY);
+  			tty = ttyname(fd);
+
+			if (tty && strcmp(tty, tty_self) == 0){
+				sprintf(path, "/proc/%s/stat", ent->d_name);
+   				file = fopen(path, "r");
+   				fscanf(file, "%d%s%c%c%c", &i, cmd, &flag, &flag, &flag);
+   				cmd[strlen(cmd) - 1] = '\0';
+   
+   				for (i = 0; i < 11; i++)
+   				fscanf(file, "%lu", &time);
+   				fscanf(file, "%lu", &stime);
+   				time = (int)((double)(time + stime) / sysconf(_SC_CLK_TCK));
+   				sprintf(time_s, "%02lu:%02lu:%02lu",
+   				(time / 3600) % 3600, (time / 60) % 60, time % 60);
  
-void pidaux ()
-{
-  DIR *dirp;
+   				printf(FORMAT, ent->d_name, tty + 5, time_s, cmd + 1);
+   				fclose(file);
+  			}
+  			close(fd);
+		}
+	}
+	close(fd_self);
+}
+
+void ps_u(){
+	DIR *dirp;
   FILE *fp;
   struct dirent *entry;
   char path[MAX_BUF], read_buf[MAX_BUF],temp_buf[MAX_BUF];
@@ -165,9 +218,14 @@ void pidaux ()
   } 
   closedir (dirp);
 }
- 
-int main (int argc, char *argv[])
-{
-  pidaux();	
-  return 0;
+
+int main(int argc, char** argv){
+    if(argc == 1){
+		ps();
+	} else if(strcmp( argv[1], '-a') == 0){
+		ps();
+	} else{
+		ps_u();
+	}
+	return 0;
 }
