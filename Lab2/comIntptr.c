@@ -23,7 +23,7 @@ void parseSpace(char* str, char** parsed)
     }
 }
 
-void execArgs(char** parsed)
+void execArgs(char* path, char** parsed)
 {
     // Forking a child
     pid_t pid = fork(); 
@@ -32,7 +32,7 @@ void execArgs(char** parsed)
         printf("\nFailed forking child..");
         return;
     } else if (pid == 0) {
-        if (execvp(parsed[0], parsed) < 0) {
+        if (execvp(path, parsed) < 0) {
             printf("\nCould not execute command..");
         }
         exit(0);
@@ -44,20 +44,27 @@ void execArgs(char** parsed)
 }
 
 int main(){
-    char inputString[MAXCOM], *parsedArgs[MAXLIST];
-
+    char *inputString, *parsedArgs[MAXLIST];
+    unsigned long int len = MAXCOM;
+    
     
 
     while(1){
         printf("\n $ ");
-        scanf("%[^\n]s", inputString);
+        getline(&inputString, &len, stdin);
+
+        char path[MAXCOM] = "/bin/";
 
         if(strcmp(inputString, "") == 0)
             continue;
 
         parseSpace(inputString, parsedArgs);
 
-        execArgs(parsedArgs);
+        strcat(path, parsedArgs[0]);
+
+        
+
+        execArgs(path, parsedArgs);
     }
 
     
